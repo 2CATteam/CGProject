@@ -323,7 +323,7 @@ function drawScene(gl, programInfo, buffers, deltaTime) {
 
   // Update the rotation for the next draw
 
-  cubeRotation += deltaTime * parseFloat(document.getElementById("rSpeed").value);
+  cubeRotation += deltaTime * parseFloat(document.getElementById("rSpeed").value ? document.getElementById("rSpeed").value : "0");
 }
 
 //
