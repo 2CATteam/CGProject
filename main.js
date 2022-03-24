@@ -562,25 +562,20 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
         // This handles that case by still doing the crossings and stuff, because that represents a horizontal line
         if (clipped[1] > clipped[3]) {
           //We know that the last point in the array now represents crossing the min, and the penultimate point represents crossing the max
-          // But we may not need to update maxCrossings if it's not the first time we've seen that point
           polygon.minCrossings.push({
             x: clipped[2],
             i: polygon.points.length - 2
           })
-          if (entered == 0) {
-            polygon.maxCrossings.push({
-              x: clipped[0],
-              i: polygon.points.length - 4
-            })
-          }
+          polygon.maxCrossings.push({
+            x: clipped[0],
+            i: polygon.points.length - 4
+          })
         } else {
           //Same as above but switched
-          if (entered != -1) {
-            polygon.minCrossings.push({
-              x: clipped[0],
-              i: polygon.points.length - 4
-            })
-          }
+          polygon.minCrossings.push({
+            x: clipped[0],
+            i: polygon.points.length - 4
+          })
           polygon.maxCrossings.push({
             x: clipped[2],
             i: polygon.points.length - 2
@@ -609,7 +604,13 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
         if (clipped == null) {
           throw new Error("What the heck, I thought this segment crossed top, but it was outside the range!")
         }
-        
+
+        //If this starts on the max and continues up, don't count it
+        if (Math.abs(points2[j1] - maxY) < minDifference && points2[j3] >= points2[j1]) {
+          continue
+        }
+
+        //If we haven't started a poly yet, mark the start and ends
         if (entered == 0) {
           polygon.points.push(...clipped)
         } else {
@@ -617,14 +618,14 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
         }
 
         //Update maxCrossings arrays
-        if (clipped[1] > clipped[3]) {
-          //We know that the penultimate point represents crossing the max
+        if (Math.abs(clipped[0] - maxY) < minDifference) {
+          //If the first point touched the top, mark that
           polygon.maxCrossings.push({
             x: clipped[0],
             i: polygon.points.length - 4
           })
         } else {
-          //Same as above but switched
+          //Otherwise, it must have been the second point which touched the top
           polygon.maxCrossings.push({
             x: clipped[2],
             i: polygon.points.length - 2
@@ -650,11 +651,21 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
         if (clipped == null) {
           throw new Error("What the heck, I thought this segment crossed bottom, but it was outside the range!")
         }
-        //We only push the second point, as we know the previous should have already been included by this point
-        polygon.points.push(clipped[2], clipped[3])
+
+        //If this starts on the min and continues down, don't count it
+        if (Math.abs(points2[j1] - minY) < minDifference && points2[j3] <= points2[j1]) {
+          continue
+        }
+
+        //If we haven't started a poly yet, mark the start and ends
+        if (entered == 0) {
+          polygon.points.push(...clipped)
+        } else {
+          polygon.points.push(clipped[2], clipped[3])
+        }
 
         //Update minCrossings arrays
-        if (clipped[1] < clipped[3]) {
+        if (Math.abs(clipped[0] - minY) < minDifference) {
           //We know that the penultimate point represents crossing the min
           polygon.minCrossings.push({
             x: clipped[0],
@@ -686,6 +697,10 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
         let clipped = trimPoints(points2[j0], points2[j1], points2[j2], points2[j3], minY, maxY)
         //If we're outside the range, do nothing
         if (clipped == null) {
+          continue
+        } else if (Math.abs(clipped[3] - clipped[1]) < minDifference
+         && Math.abs(clipped[3] - maxY) < minDifference
+         || Math.abs(clipped[3] - minY) < minDifference) { //Else if the line is a horizontal line touching the boundaries, do nothing
           continue
         } else { //If we're inside the range, add only the second point (the first is already there)
           polygon.points.push(clipped[2], clipped[3])
@@ -1007,12 +1022,12 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
       //Make more detailed notes on the min crossing intervals
       let maxIntervals = []
       for (let j = 0; j < polygons.length; j++) {
-        for (let k = 0; k < polygons[j].maxIntervals.length; k += 2) {
+        for (let k = 0; k < polygons[j].maxCrossings.length; k += 2) {
           let crossing = {
-            start: polygons[j].maxIntervals[k].x,
-            end: polygons[j].maxIntervals[k + 1].x,
-            startIndex: polygons[j].maxIntervals[k].i,
-            endIndex: polygons[j].maxIntervals[k + 1].i,
+            start: polygons[j].maxCrossings[k].x,
+            end: polygons[j].maxCrossings[k + 1].x,
+            startIndex: polygons[j].maxCrossings[k].i,
+            endIndex: polygons[j].maxCrossings[k + 1].i,
             polygon: j,
             intervalIndex: k
           }
@@ -1035,7 +1050,7 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
             let reversedPoints = []
               for (let k = polygons[maxIntervals[j].polygon].points.length - 2; k >= 0; k -= 2) {
                 reversedPoints.push(polygons[maxIntervals[j].polygon].points[k])
-                reversedPoints.push(polygons[minIntmaxIntervalservals[j].polygon].points[k + 1])
+                reversedPoints.push(polygons[maxIntervals[j].polygon].points[k + 1])
               }
               polygons[maxIntervals[j].polygon].points = reversedPoints
             maxIntervals[j].startIndex = polygons[maxIntervals[j].polygon].points.length - maxIntervals[j].startIndex - 2
@@ -1059,7 +1074,7 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
             //Crossing where the outer interval ended
             newCrossings.push({x: maxIntervals[j - 1].end, i: maxIntervals[j - 1].startIndex + maxIntervals[j].endIndex + 2})
             //Finally, replace the previous interval's crossings with these four new crossings
-            polygons[maxIntervals[j - 1].polygon].minCrossings.splice(maxIntervals[j - 1].intervalIndex, 2, ...newCrossings)
+            polygons[maxIntervals[j - 1].polygon].maxCrossings.splice(maxIntervals[j - 1].intervalIndex, 2, ...newCrossings)
           } else {
             //Same as above
             let newCrossings = []
@@ -1067,7 +1082,7 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
             newCrossings.push({x: maxIntervals[j].start, i: maxIntervals[j - 1].endIndex + maxIntervals[j].startIndex + 1})
             newCrossings.push({x: maxIntervals[j].end, i: maxIntervals[j - 1].endIndex + 1})
             newCrossings.push({x: maxIntervals[j - 1].end, i: maxIntervals[j - 1].endIndex})
-            polygons[maxIntervals[j - 1].polygon].minCrossings.splice(maxIntervals[j - 1].intervalIndex, 2, ...newCrossings)
+            polygons[maxIntervals[j - 1].polygon].maxCrossings.splice(maxIntervals[j - 1].intervalIndex, 2, ...newCrossings)
           }
           //Remove the inner polygon, as its purpose has now been served
           polygons.splice(maxIntervals[j].polygon, 1)
