@@ -270,10 +270,14 @@ function setModel(data1, data2, perspectiveDistance, extrusionDistance) {
     let maxX = null
     let maxY = null
     let points1 = []
+    const curve_segments = 100 // Number of segments to divide a curve into. 
+                                  // Increase for smoothness, decrease for performance.
     //For every point command
     for (let i of path1.getPathData({normalize: true})) {
         //If it's a curve point
         if (i.type === "C") {
+            let oldY = points1[points1.length-1] // Get starting y
+            let oldX = points1[points1.length-2] // Get starting x
             //Invert the Y to go from SVG coordinates to "real" coordinates
             i.values[5] *= -1
             //Collect mins and maxes
@@ -290,7 +294,11 @@ function setModel(data1, data2, perspectiveDistance, extrusionDistance) {
                 maxY = i.values[5]
             }
             //Save the values
-            points1.push(i.values[4], i.values[5])
+            for (var t = 1; t <= curve_segments; t+=1) { // Adds curve_segments new points to draw segments between
+                let s = t / curve_segments
+                points1.push((1-s)*(1-s)*(1-s)*oldX + 3*(1-s)*(1-s)*s*i.values[0] + 3*(1-s)*s*s*i.values[2] + s*s*s*i.values[4])
+                points1.push((1-s)*(1-s)*(1-s)*oldY + 3*(1-s)*(1-s)*s*i.values[1] + 3*(1-s)*s*s*i.values[3] + s*s*s*i.values[5])
+            }
         } else if (i.type == "M" || i.type == "L") {
           //Invert the Y to go from SVG coordinates to "real" coordinates
             i.values[1] *= -1
