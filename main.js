@@ -72,7 +72,7 @@ function main() {
 
   // Here's where we call the routine that builds all the
   // objects we'll be drawing.
-  setModel("M 0 0 L 10 10 20 10 L 0 20 Z", "M 0 0 L 10 10 20 10 L 0 20 Z", 2, 1)
+  setModel("M 10 20 L 20 10 10 0 0 10 Z", "M 10 20 L 20 10 10 0 0 10 Z", 2, 1)
 
   var then = 0;
 
@@ -496,8 +496,8 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
     //Keeps an array of objects representing polygons
     let polygons = []
     //The upper an lower boundaries of this line segment
-    minY = Math.min(points1[(i + 1) % points1.length], points1[(i + 3) % points1.length])
-    maxY = Math.max(points1[(i + 1) % points1.length], points1[(i + 3) % points1.length])
+    let minY = Math.min(points1[(i + 1) % points1.length], points1[(i + 3) % points1.length])
+    let maxY = Math.max(points1[(i + 1) % points1.length], points1[(i + 3) % points1.length])
     console.log(minY, maxY)
     //Entered is treated as an enum tracking whether we've entered the range.
     // entered = 0 means we haven't
@@ -547,43 +547,18 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
         if (clipped == null) {
           throw new Error("What the heck, I thought this segment crossed top and bottom, but it was outside the range!")
         }
-        //Add points to the polygon points list as needed
-        // If we've made a polygon already, we only need the second point, as the first is already there.
-        if (entered == 0) {
-          //Note that this is some syntax sugar to turn an array into a series of arguments
+
+        //Add both points if the first is novel, else just add the last two
+        if (polygon.points.length < 2
+         || polygon.points[polygon.points.length - 1] != clipped[1]
+         || polygon.points[polygon.points.length - 2] != clipped[0]) {
           polygon.points.push(...clipped)
         } else {
           polygon.points.push(clipped[2], clipped[3])
         }
 
-        //Update the arrays that deal with crossings
-        //If the first point is the higher one, we know the second hits the min and the first hits the max
-        // Note: there's always the chance that the clipped line has the same y value, because maxY roughly equals minY.
-        // This handles that case by still doing the crossings and stuff, because that represents a horizontal line
-        if (clipped[1] > clipped[3]) {
-          //We know that the last point in the array now represents crossing the min, and the penultimate point represents crossing the max
-          polygon.minCrossings.push({
-            x: clipped[2],
-            i: polygon.points.length - 2
-          })
-          polygon.maxCrossings.push({
-            x: clipped[0],
-            i: polygon.points.length - 4
-          })
-        } else {
-          //Same as above but switched
-          polygon.minCrossings.push({
-            x: clipped[0],
-            i: polygon.points.length - 4
-          })
-          polygon.maxCrossings.push({
-            x: clipped[2],
-            i: polygon.points.length - 2
-          })
-        }
-
         //If we hadn't started a polygon yet, note that we have now
-        if (entered == 0) {
+        if (entered == 0 && (clipped[0] != clipped[2] || clipped[1] != clipped[3])) {
           if (points2[j1] > maxY) {
             entered = 1
           } else {
@@ -591,7 +566,7 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
           }
         } else { //If we've already started a polygon, finalize it and start a new one
           entered = 0
-          addPolygon(polygons, polygon)
+          addPolygon(polygons, polygon, minY, maxY)
           polygon = {
             points: [],
             minCrossings: [],
@@ -610,34 +585,21 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
           continue
         }
 
-        //If we haven't started a poly yet, mark the start and ends
-        if (entered == 0) {
+        //Add both points if the first is novel, else just add the last two
+        if (polygon.points.length < 2
+         || polygon.points[polygon.points.length - 1] != clipped[1]
+         || polygon.points[polygon.points.length - 2] != clipped[0]) {
           polygon.points.push(...clipped)
         } else {
           polygon.points.push(clipped[2], clipped[3])
         }
 
-        //Update maxCrossings arrays
-        if (Math.abs(clipped[0] - maxY) < minDifference) {
-          //If the first point touched the top, mark that
-          polygon.maxCrossings.push({
-            x: clipped[0],
-            i: polygon.points.length - 4
-          })
-        } else {
-          //Otherwise, it must have been the second point which touched the top
-          polygon.maxCrossings.push({
-            x: clipped[2],
-            i: polygon.points.length - 2
-          })
-        }
-
         //If we hadn't started a polygon yet, note that we have now from the top
-        if (entered == 0) {
+        if (entered == 0 && (clipped[0] != clipped[2] || clipped[1] != clipped[3])) {
           entered = 1
         } else if (entered == 1) { //If we've already started a polygon and we came in from the top, finalize it and start a new one
           entered = 0
-          addPolygon(polygons, polygon)
+          addPolygon(polygons, polygon, minY, maxY)
           polygon = {
             points: [],
             minCrossings: [],
@@ -657,34 +619,22 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
           continue
         }
 
-        //If we haven't started a poly yet, mark the start and ends
-        if (entered == 0) {
+        //Add both points if the first is novel, else just add the last two
+        if (polygon.points.length < 2
+         || polygon.points[polygon.points.length - 1] != clipped[1]
+         || polygon.points[polygon.points.length - 2] != clipped[0]) {
           polygon.points.push(...clipped)
         } else {
           polygon.points.push(clipped[2], clipped[3])
         }
 
-        //Update minCrossings arrays
-        if (Math.abs(clipped[0] - minY) < minDifference) {
-          //We know that the penultimate point represents crossing the min
-          polygon.minCrossings.push({
-            x: clipped[0],
-            i: polygon.points.length - 4
-          })
-        } else {
-          //Same as above but switched
-          polygon.minCrossings.push({
-            x: clipped[2],
-            i: polygon.points.length - 2
-          })
-        }
-
         //If we hadn't started a polygon yet, note that we have now from the bottom
-        if (entered == 0) {
+        // Don't do so if the clipped points are the same. That means it just touches the line, it didn't start a polygon
+        if (entered == 0 && (clipped[0] != clipped[2] || clipped[1] != clipped[3])) {
           entered = -1
         } else if (entered == -1) { //If we've already started a polygon and we came in from the top, finalize it and start a new one
           entered = 0
-          addPolygon(polygons, polygon)
+          addPolygon(polygons, polygon, minY, maxY)
           polygon = {
             points: [],
             minCrossings: [],
@@ -711,7 +661,7 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
     //Wow, we're finally out of that loop! Feels good
     //If there's still data left in the polygon object, go ahead and add it to the array
     if (polygon.points.length > 0) {
-      addPolygon(polygons, polygon)
+      addPolygon(polygons, polygon, minY, maxY)
     }
     //Now we have to check for intersection between polygons... This will be hard
     //Repeat until we don't have to make any changes
@@ -1094,7 +1044,8 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
     //WOW, OKAY, SO, WE'RE FINALLY OUT OF THAT LOOP! FEELS GOOD!!
     //Now, all we have to do is, for each of those polygons, add the triangles to cut using earcut.
     for (let j = 0; j < polygons.length; j++) {
-      let colors = [Math.random(), Math.random(), Math.random(), 1]
+      let colors = [Math.random(), Math.random(), Math.random(), 1.0]
+      let previousLength = vertexPoints.length / 3
       for (let k = 0; k < polygons[j].points.length; k += 2) {
         if (switchXAndZ) {
           vertexPoints.push(interpolate(points1[(i + 1) % points1.length],
@@ -1113,12 +1064,9 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
             points1[(i + 2) % points1.length],
             polygons[j].points[k + 1]))
         }
-        //One color value for each point
-        colorPoints.push(colors)
-        colorPoints.push(colors)
-        colorPoints.push(colors)
+        //One color value for each point (NOT per coordinate)
+        colorPoints.push(...colors)
       }
-      let previousLength = vertexPoints.length / 3
       let order = earcut(polygons[j].points)
       for (let k = 0; k < order.length; k++) {
         order[k] += previousLength
@@ -1128,8 +1076,51 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
   }
 }
 
-//Just like 3 lines I felt needed their own function :)
-function addPolygon(polygonsArray, toAdd) {
+//Forms crossing arrays and adds polygon to polygons array
+function addPolygon(polygonsArray, toAdd, min, max) {
+  //Remove points which are duplicates
+  toAdd.points = toAdd.points.filter((value, index, array) => {
+    //Get the index of the corresponding X value
+    let i = index - (index % 2)
+    //Get the index of the next X value (circularly)
+    let j = (i + 2) % array.length
+    //Return whether the X or Y values differ from the next one
+    let keep = (Math.abs(array[i] - array[j]) > minDifference || Math.abs(array[i + 1] - array[j + 1]) > minDifference)
+    return keep
+  })
+  //Add crossings
+  for (let i = 1; i < toAdd.points.length; i += 2) {
+    //Circular adjacent points
+    let iLast = (i + toAdd.points.length - 2) % toAdd.points.length
+    let iNext = (i + 2) % toAdd.points.length
+    //If this point lies on the bottom line
+    if (Math.abs(toAdd.points[i] - min) < minDifference) {
+      let lastGreater = toAdd.points[iLast] - toAdd.points[i] > minDifference
+      let nextGreater = toAdd.points[iNext] - toAdd.points[i] > minDifference
+      //If both points are greater, then we know this is just tapping the side. Just to be safe, we add TWO intersection points
+      if (lastGreater && nextGreater) {
+        //We push the X value and the index of the X value.
+        // No circular logic needed because this always has an even length
+        toAdd.minCrossings.push({x: toAdd.points[i - 1], i: i - 1})
+        toAdd.minCrossings.push({x: toAdd.points[i - 1], i: i - 1})
+      } else if (lastGreater || nextGreater) { //If ONE of the points is greater, this lies along a crossing, add an intersection point
+        toAdd.minCrossings.push({x: toAdd.points[i - 1], i: i - 1})
+      }//If both are less or equal, this isn't a crossing. Do nothing 
+    //Else if the point lies on the top line
+    } else if (Math.abs(toAdd.points[i] - max) < minDifference) {
+      let lastLess = toAdd.points[i] - toAdd.points[iLast] > minDifference
+      let nextLess = toAdd.points[i] - toAdd.points[iNext] > minDifference
+      //If both points are less, then we know this is just tapping the side. Just to be safe, we add TWO intersection points
+      if (lastLess && nextLess) {
+        //We push the X value and the index of the X value.
+        // No circular logic needed because this always has an even length
+        toAdd.maxCrossings.push({x: toAdd.points[i - 1], i: i - 1})
+        toAdd.maxCrossings.push({x: toAdd.points[i - 1], i: i - 1})
+      } else if (lastLess || nextLess) { //If ONE of the points is less, this lies along a crossing, add an intersection point
+        toAdd.maxCrossings.push({x: toAdd.points[i - 1], i: i - 1})
+      }//If both are greater or equal, this isn't a crossing. Do nothing
+    }
+  }
   //Sort the crossings arrays based on the indices. Makes later sorting faster, I think
   toAdd.minCrossings.sort((a, b) => a.x - b.x)
   toAdd.maxCrossings.sort((a, b) => a.x - b.x)
