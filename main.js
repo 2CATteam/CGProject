@@ -72,7 +72,7 @@ function main() {
 
   // Here's where we call the routine that builds all the
   // objects we'll be drawing.
-  setModel("M 10 20 L 20 10 10 0 0 10 Z", "M 10 20 L 20 10 10 0 0 10 Z", 2, 1)
+  setModel("M 0 0 L 10 10 20 5 L 0 20 Z", "M 0 0 L 10 10 20 9 L 0 20 Z", 2, 1)
 
   var then = 0;
 
@@ -1220,11 +1220,12 @@ function interpolate(x1, y1, x2, y2, x) {
 
 function refreshModel(e) {
     setModel(document.getElementById("svgData").value,
-        document.getElementById("svgData").value,
+        document.getElementById("svgData2").value,
         parseFloat(document.getElementById("pDistance").value),
         parseFloat(document.getElementById("eDistance").value))
 }
 
 document.getElementById("svgData").addEventListener('change', refreshModel)
+document.getElementById("svgData2").addEventListener('change', refreshModel)
 document.getElementById("pDistance").addEventListener('change', refreshModel)
 document.getElementById("eDistance").addEventListener('change', refreshModel)
