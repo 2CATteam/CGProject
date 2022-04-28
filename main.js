@@ -72,7 +72,7 @@ function main() {
 
   // Here's where we call the routine that builds all the
   // objects we'll be drawing.
-  setModel("M 0 0 L 10 10 20 5 L 0 20 Z", "M 0 0 L 10 10 20 9 L 0 20 Z", 2, 1)
+  setModel("M 0 0 L 10 10 20 5 L 0 20 Z", "M 0 0 L 10 10 20 9 L 0 20 Z", 2)
 
   var then = 0;
 
@@ -257,7 +257,7 @@ function loadShader(gl, type, source) {
   return shader;
 }
 
-function setModel(data1, data2, perspectiveDistance, extrusionDistance) {
+function setModel(data1, data2, perspectiveDistance) {
     //Display the path data in the SVGs
     let path1 = document.getElementById("pathTest1");
     path1.setAttribute("d", data1)
@@ -415,57 +415,22 @@ function setModel(data1, data2, perspectiveDistance, extrusionDistance) {
     clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indices, false)
     console.log("Did first one")
     clipProfileToProfile(points2, points1, vertexPoints, colorPoints, indices, true)
+    console.log("Did the second one")
 
-    /*let backPoints = []
-
-    for (let i = 0; i < points.length; i += 2) {
-        backPoints.push(points[i] * (extrusionDistance + perspectiveDistance) / perspectiveDistance)
-        backPoints.push((points[i + 1] + 1) * (extrusionDistance + perspectiveDistance) / perspectiveDistance - 1)
+    //Compensate for perspective
+    for (let i = 0; i < vertexPoints.length; i += 3) {
+      //Change the X and Z coordinates based on perspective
+      let newXY = lineIntersection(
+        //Observe the X from the negative Z axis, perspectiveDistance away
+        0, perspectiveDistance + .5, 
+        vertexPoints[i], -perspectiveDistance,
+        //Observe the Z from the positive X axis
+        -perspectiveDistance - .5, 0,
+        perspectiveDistance, vertexPoints[i + 2]
+      )
+      vertexPoints[i] = newXY[0]
+      vertexPoints[i + 2] = newXY[1]
     }
-
-    console.log(backPoints)
-
-    
-    for (let i in points) {
-        vertexPoints.push(points[i])
-        if (i % 2 == 1) {
-            vertexPoints.push(0.5 * extrusionDistance)
-            colorPoints.push(1.0, 0.0, 0.0, 1.0)
-        }
-    }
-
-    for (let i in backPoints) {
-        vertexPoints.push(backPoints[i])
-        if (i % 2 == 1) {
-            vertexPoints.push(-0.5 * extrusionDistance)
-            colorPoints.push(0.0, 1.0, 0.0, 1.0)
-        }
-    }
-
-    for (let i in points) {
-        vertexPoints.push(points[i])
-        if (i % 2 == 1) {
-            vertexPoints.push(0.5 * extrusionDistance)
-            colorPoints.push(1.0, 1.0, 1.0, 1.0)
-        }
-    }
-
-    indices.push.apply(indices, earcut(points))
-    for (let i = 0; i < points.length / 2; i++) {
-        indices.push(i)
-        indices.push((i + 1) % (points.length / 2))
-        indices.push(i + points.length / 2)
-
-        indices.push((i + 1) % (points.length / 2))
-        indices.push(i + points.length / 2)
-        indices.push(((i + 1) % (points.length / 2)) + points.length / 2)
-    }
-    for (let i of earcut(backPoints)) {
-        indices.push(i + points.length / 2)
-    }
-    for (let i of earcut(points)) {
-        indices.push(i + points.length)
-    }*/
 
     const canvas = document.querySelector('#glCanvas');
     const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
@@ -1318,14 +1283,32 @@ function interpolate(x1, y1, x2, y2, x) {
   return (x - x1) * ((y2 - y1) / (x2 - x1)) + y1
 }
 
+//Returns the intersection point of two lines, each defined by a point and a vector
+function lineIntersection(p1x, p1y, v1x, v1y, p2x, p2y, v2x, v2y) {
+  //Normalize the vectors
+  let mv1 = Math.sqrt(v1x * v1x + v1y * v1y)
+  v1x /= mv1
+  v1y /= mv1
+  let mv2 = Math.sqrt(v2x * v2x + v2y * v2y)
+  v2x /= mv2
+  v2y /= mv2
+  //The perp vector of v2 is <v2y, -v2x>
+  //Relative speed is that perp dotted with v1
+  let relativeSpeed = Math.abs(v2y * v1x - v2x * v1y)
+  //Now the DISTANCE to hit is the displacement vector between p1 and p2 dotted with the perp vector
+  let minDistance = Math.abs((p2x - p1x) * v2y - (p2y - p1y) * v2x)
+  //So now the time to hit is minDistance / relativeSpeed
+  let timeToHit = minDistance / relativeSpeed
+  //Now it's just timeToHit * v1 + p1
+  return [p1x + timeToHit * v1x, p1y + timeToHit * v1y]
+}
+
 function refreshModel(e) {
     setModel(document.getElementById("svgData").value,
         document.getElementById("svgData2").value,
-        parseFloat(document.getElementById("pDistance").value),
-        parseFloat(document.getElementById("eDistance").value))
+        parseFloat(document.getElementById("pDistance").value))
 }
 
 document.getElementById("svgData").addEventListener('change', refreshModel)
 document.getElementById("svgData2").addEventListener('change', refreshModel)
 document.getElementById("pDistance").addEventListener('change', refreshModel)
-document.getElementById("eDistance").addEventListener('change', refreshModel)
