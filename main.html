@@ -26,6 +26,7 @@
         <label>Viewing angle (deg): <input type="number" min="-90" max="90" step="1" value="45" id="vAngle"></label><br/>
         <label>Rotation speed: <input type="number" step=".1" value="1" id="rSpeed"></label><br/>
         <label>Perspective distance: <input type="number" min="1" max="10000" step="1" value="2" id="pDistance"></label><br/>
+        <button onclick="exportSTL()">Download .stl file</button>
        </div>
        <div id="output1" class="d-flex flex-column justify-content-center align-items-center">
         <canvas width = "640" height = "640" id = "glCanvas"></canvas><br/>
