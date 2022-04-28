@@ -725,7 +725,7 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
               }
             }
             //Get the outer right min index too
-            for (let k = 0; k < polygons[minIntervals[j - 1].polygon].maxCrossings.length - 1; k++) {
+            for (let k = 0; k < polygons[minIntervals[j - 1].polygon].minCrossings.length - 1; k++) {
               //If the next crossing is greater than the above point, then k is the lower bound of the relevant interval
               //Save the lower bound of the interval containing the first point
               if (polygons[minIntervals[j - 1].polygon].minCrossings[k + 1].x > minIntervals[j].end) {
@@ -778,7 +778,8 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
 
             //Copy in the point values from the original polygon
             //We know that the point after outerMaxIndexLow is NOT part of this new polygon, so we can use that fact to identify the direction of this polygon
-            let outerCW = (polygons[minIntervals[j - 1].polygon].maxCrossings[outerLeftMaxIndex + 1].i > polygons[minIntervals[j - 1].polygon].maxCrossings[outerLeftMaxIndex].i)
+            let outerCW = (polygons[minIntervals[j - 1].polygon].maxCrossings[outerLeftMaxIndex + 1].i > polygons[minIntervals[j - 1].polygon].maxCrossings[outerLeftMaxIndex].i
+              || (polygons[minIntervals[j - 1].polygon].maxCrossings[outerLeftMaxIndex + 1].i == 0 && polygons[minIntervals[j - 1].polygon].maxCrossings[outerLeftMaxIndex].i + 2 == polygons[minIntervals[j - 1].polygon].points.length))
             //Collect all the crossing indices
             let crossingIndices = []
             for (let k in polygons[minIntervals[j - 1].polygon].minCrossings) {
@@ -789,8 +790,8 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
             }
             //We get all the points from the left part of the outer polygon
             leftPolygon.points = circularSlice(polygons[minIntervals[j - 1].polygon].points,
-              outerCW ? minIntervals[j - 1].startIndex : outerLeftMaxIndex, //When in outer is CW, we go from min to max
-              (outerCW ? outerLeftMaxIndex : minIntervals[j - 1].startIndex) + 1, //Otherwise, we got from max to min. The +1 is to make the end inclusive
+              outerCW ? minIntervals[j - 1].startIndex : polygons[minIntervals[j - 1].polygon].maxCrossings[outerLeftMaxIndex].i, //When in outer is CW, we go from min to max
+              (outerCW ? polygons[minIntervals[j - 1].polygon].maxCrossings[outerLeftMaxIndex].i : minIntervals[j - 1].startIndex) + 2, //Otherwise, we got from max to min. The +2 is to make the end inclusive
               crossingIndices)
             //Then we update the crossings of this slice to reflect the new indices of the crossing points
             for (let k = 0; k < crossingIndices.length; k++) {
@@ -802,16 +803,16 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
               }
             }
             //Then we add in the new edges from the intersecting polygon
-            let previousLength = leftPolygon.length
+            let previousLength = leftPolygon.points.length
             let newPoints = circularSlice(polygons[minIntervals[j].polygon].points,
               outerCW ? innerLeftMaxIndex : innerLeftMinIndex, //Same as above, but reversed, because the inner is CCW when the outer is CW
-              (outerCW ? innerLeftMinIndex : innerLeftMaxIndex) + 1)
+              (outerCW ? innerLeftMinIndex : innerLeftMaxIndex) + 2)
             leftPolygon.points.push(...newPoints)
             //Now update the crossings
             //The first in the new points list is always the max crossing, and the last is always the min crossing, based on our definition earlier.
             // Or switched when outer is CCW
-            leftPolygon.maxCrossings.push({x: polygons[minIntervals[j].polygon].maxCrossings[0].x, i: outerCW ? previousLength : leftPolygon.points.length - 1})
-            leftPolygon.minCrossings.push({x: polygons[minIntervals[j].polygon].minCrossings[0].x, i: outerCW ? leftPolygon.points.length - 1 : previousLength})
+            leftPolygon.maxCrossings.push({x: polygons[minIntervals[j].polygon].maxCrossings[0].x, i: outerCW ? previousLength : leftPolygon.points.length - 2})
+            leftPolygon.minCrossings.push({x: polygons[minIntervals[j].polygon].minCrossings[0].x, i: outerCW ? leftPolygon.points.length - 2 : previousLength})
             //Save this polygon (we'll delete the old ones later)
             polygons.push(leftPolygon)
 
@@ -826,8 +827,8 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
             }
             //We get all the points from the right part of the outer polygon
             rightPolygon.points = circularSlice(polygons[minIntervals[j - 1].polygon].points,
-              outerCW ? outerRightMaxIndex : outerRightMinIndex, //Reversed of last time - if outside is CW, go max to min, since this is the right
-              (outerCW ? outerRightMinIndex : outerRightMaxIndex) + 1,
+              outerCW ? polygons[minIntervals[j - 1].polygon].maxCrossings[outerRightMaxIndex].i : polygons[minIntervals[j - 1].polygon].minCrossings[outerRightMinIndex].i, //Reversed of last time - if outside is CW, go max to min, since this is the right
+              (outerCW ? polygons[minIntervals[j - 1].polygon].minCrossings[outerRightMinIndex].i : polygons[minIntervals[j - 1].polygon].maxCrossings[outerRightMaxIndex].i) + 2,
               crossingIndices)
             //Then we update the crossings of this new one to reflect the new indices of the crossing points
             for (let k = 0; k < crossingIndices.length; k++) {
@@ -840,17 +841,17 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
             }
 
             //Then we add in the new edges from the intersecting polygon
-            previousLength = rightPolygon.length
+            previousLength = rightPolygon.points.length
             //The boundaries for the right ones, we KNOW are the final ones in the inner crossings
             //The order depends on CW-ness, and since this is long, we do a normal if instead of a ternary
             if (outerCW) {
               newPoints = circularSlice(polygons[minIntervals[j].polygon].points,
                 polygons[minIntervals[j].polygon].minCrossings[polygons[minIntervals[j].polygon].minCrossings.length - 1].i,
-                polygons[minIntervals[j].polygon].maxCrossings[polygons[minIntervals[j].polygon].maxCrossings.length - 1].i + 1)
+                polygons[minIntervals[j].polygon].maxCrossings[polygons[minIntervals[j].polygon].maxCrossings.length - 1].i + 2)
             } else {
               newPoints = circularSlice(polygons[minIntervals[j].polygon].points,
                 polygons[minIntervals[j].polygon].maxCrossings[polygons[minIntervals[j].polygon].maxCrossings.length - 1].i,
-                polygons[minIntervals[j].polygon].minCrossings[polygons[minIntervals[j].polygon].minCrossings.length - 1].i + 1)
+                polygons[minIntervals[j].polygon].minCrossings[polygons[minIntervals[j].polygon].minCrossings.length - 1].i + 2)
             }
             rightPolygon.points.push(...newPoints)
             //Now update the crossings
@@ -858,11 +859,11 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
             //Switched if outer is CCW
             rightPolygon.maxCrossings.push({
               x: polygons[minIntervals[j].polygon].maxCrossings[polygons[minIntervals[j].polygon].minCrossings.length - 1].x,
-              i: outerCW ? (leftPolygon.points.length - 1) : previousLength
+              i: outerCW ? (leftPolygon.points.length - 2) : previousLength
             })
             rightPolygon.minCrossings.push({
               x: polygons[minIntervals[j].polygon].minCrossings[polygons[minIntervals[j].polygon].minCrossings.length - 1].x,
-              i: outerCW ? previousLength : (leftPolygon.points.length - 1)
+              i: outerCW ? previousLength : (leftPolygon.points.length - 2)
             })
             //Save this polygon (we'll delete the old ones later)
             polygons.push(rightPolygon)
@@ -1170,13 +1171,13 @@ function trimPoints(x1, y1, x2, y2, bound1, bound2) {
 //Functions like vanilla's slice(), but if b < a, will instead return an array including elements from a to the end followed by items from the beginning to b
 //If an array of indices is supplied as well, will update them
 function circularSlice(array, a, b, indices) {
-  if (a >= b) {
+  if (a <= b) {
     if (indices) {
       for (let i = 0; i < indices.length; i++) {
-        if (i < b && i >= a) {
-          i -= a
+        if (indices[i] < b && indices[i] >= a) {
+          indices[i] -= a
         } else {
-          i = -1
+          indices[i] = -1
         }
       }
     }
@@ -1184,17 +1185,17 @@ function circularSlice(array, a, b, indices) {
   } else {
     if (indices) {
       for (let i = 0; i < indices.length; i++) {
-        if (i >= b) {
-          indices[i] -= b
-        } else if (i < a) {
-          indices += (indices.length - b - 1)
+        if (indices[i] >= a) {
+          indices[i] -= a
+        } else if (indices[i] < b) {
+          indices[i] += (array.length - a)
         } else {
           indices[i] = -1
         }
       }
     }
-    let toReturn = array.slice(b, array.length)
-    toReturn.push(...array.slice(0, a))
+    let toReturn = array.slice(a, array.length)
+    toReturn.push(...array.slice(0, b))
     return toReturn
   }
 }
