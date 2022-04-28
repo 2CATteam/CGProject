@@ -1,0 +1,32 @@
+#input1 {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 50%;
+    height: 50%;
+    border: 1px solid black;
+}
+#input2 {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    width: 50%;
+    height: 50%;
+    border: 1px solid black;
+}
+#input3 {
+    position: absolute;
+    left: 50%;
+    top: 0;
+    width: 50%;
+    height: 30%;
+    border: 1px solid black;
+}
+#output1 {
+    position: absolute;
+    left: 50%;
+    top: 30%;
+    width: 50%;
+    height: 70%;
+    border: 1px solid black;
+}
