@@ -7,6 +7,10 @@ var cubeRotation = 0.0;
 let buffers
 let vertexCount
 
+let vertexPoints
+let indices
+let normals
+
 main();
 
 //
@@ -407,9 +411,10 @@ function setModel(data1, data2, perspectiveDistance) {
     console.log(points2)
     console.log(earcut(points2))
 
-    let vertexPoints = []
+    vertexPoints = []
+    normals = []
     let colorPoints = []
-    let indices = []
+    indices = []
 
     //Run the core loops
     clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indices, false)
@@ -462,10 +467,29 @@ function setModel(data1, data2, perspectiveDistance) {
 
 //Core intersection loop
 function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indices, switchXAndZ) {
+  //Precalculate clockwise-ness
+  let counterclockwise = isCCW(points1)
   //Iterate through each line segment in the first profile
   //For each one, draw the second profile and clip to the range of the segment
   //From these, generate the corresponding 3D points
   for (let i = 0; i < points1.length; i += 2) {
+    //Precalculate normal
+    let normal = [-points1[(i + 3) % points1.length] + points1[(i + 1) % points1.length],
+      points1[(i + 2) % points1.length] - points1[(i + 0) % points1.length]
+      , 0]
+    if (counterclockwise) {
+      normal[0] *= -1
+      normal[1] *= -1
+    }
+    if (switchXAndZ) {
+      normal[2] = normal[0]
+      normal[0] = 0
+    }
+    //Normalize the normal
+    let normalMagnitude = Math.sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2])
+    normal[0] /= normalMagnitude
+    normal[1] /= normalMagnitude
+    normal[2] /= normalMagnitude
     //Keeps an array of objects representing polygons
     let polygons = []
     //The upper an lower boundaries of this line segment
@@ -474,7 +498,8 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
     console.log(minY, maxY)
     //Flat surfaces need special care
     if (Math.abs(minY - maxY) < minDifference) {
-      handleHorizontalLine(minY, points2, points1[i], points1[(i + 2) % points1.length], switchXAndZ, vertexPoints, colorPoints, indices)
+      
+      handleHorizontalLine(minY, points2, points1[i], points1[(i + 2) % points1.length], switchXAndZ, vertexPoints, colorPoints, indices, normal)
       continue
     }
     //Entered is treated as an enum tracking whether we've entered the range.
@@ -1053,12 +1078,16 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
       for (let k = 0; k < order.length; k++) {
         order[k] += previousLength
       }
+      //Save a copy of the normal vector for each triangle
+      for (let k = 0; k < order.length; k += 3) {
+        normals.push(...normal)
+      }
       indices.push(...order)
     }
   }
 }
 
-function handleHorizontalLine(y, points, x1, x2, switchXAndZ, vertexPoints, colorPoints, indices) {
+function handleHorizontalLine(y, points, x1, x2, switchXAndZ, vertexPoints, colorPoints, indices, normal) {
   //We only care about crossings here, not the rest
   let minCrossings = []
   let maxCrossings = []
@@ -1138,6 +1167,8 @@ function handleHorizontalLine(y, points, x1, x2, switchXAndZ, vertexPoints, colo
       previousLength + 0,
       previousLength + 2,
       previousLength + 3)
+    normals.push(...normal)
+    normals.push(...normal)
   }
 }
 
@@ -1307,6 +1338,87 @@ function refreshModel(e) {
     setModel(document.getElementById("svgData").value,
         document.getElementById("svgData2").value,
         parseFloat(document.getElementById("pDistance").value))
+}
+
+
+//https://stackoverflow.com/questions/1165647/how-to-determine-if-a-list-of-polygon-points-are-in-clockwise-order/1180256#1180256
+function isCCW(points) {
+  if (points.length < 6) {
+    return true
+  }
+  //Find the point with the minimum Y and, breaking ties, maximum X
+  let minY = Infinity
+  let maxX = -Infinity
+  let index = -1
+  for (let i = 0; i < points.length; i += 2) {
+    if (points[i + 1] <= minY) {
+      if (points[i + 1] == minY && points[i] > maxX) {
+        minY = points[i + 1]
+        maxX = points[i]
+        index = i
+      }
+    }
+  }
+  let low = index + points.length - 2 % points.length
+  let high = index + 2 % points.length
+  let v1x = points[index] - points[low]
+  let v1y = points[index + 1] - points[low + 1]
+  let v2x = points[index] - points[high]
+  let v2y = points[index + 1] - points[high + 1]
+  return (v1x * v2y - v1y * v2x) > 0
+}
+
+//https://en.wikipedia.org/wiki/STL_(file_format)
+function exportSTL() {
+  let data = "solid team08\n"
+
+  for (let i = 0; i < indices.length; i += 3) {
+    data += ` facet normal ${normals[i]} ${normals[i + 1]} ${normals[i + 2]}`
+    data += "\n  outer loop\n"
+    data += `   vertex ${vertexPoints[indices[i] * 3]} ${vertexPoints[indices[i] * 3 + 1]} ${vertexPoints[indices[i] * 3 + 2]}` + "\n"
+    data += `   vertex ${vertexPoints[indices[i + 1] * 3]} ${vertexPoints[indices[i + 1] * 3 + 1]} ${vertexPoints[indices[i + 1] * 3 + 2]}` + "\n"
+    data += `   vertex ${vertexPoints[indices[i + 2] * 3]} ${vertexPoints[indices[i + 2] * 3 + 1]} ${vertexPoints[indices[i + 2] * 3 + 2]}` + "\n"
+    data += "  endloop\n"
+    data += " endfacet\n"
+  }
+
+  data += "endsolid team08"
+
+  download(data, "model.stl", "application/octet-stream")
+}
+
+function printData(data) {
+  let u8Array = new Uint8Array(data)
+  let u32Array = new Uint32Array(data)
+  let fArray = new Float32Array(data)
+  console.log("Length: " + u8Array.length)
+  console.log("Header: " + (new TextDecoder()).decode(u8Array).substring(0, 80))
+  console.log("Vertex count: " + u32Array[20])
+  console.log(`First normal = <${fArray[21]}, ${fArray[22]}, ${fArray[23]}>`)
+  console.log(`First point = <${fArray[24]}, ${fArray[25]}, ${fArray[26]}>`)
+  console.log(`Second point = <${fArray[27]}, ${fArray[28]}, ${fArray[29]}>`)
+  console.log(`Third point = <${fArray[30]}, ${fArray[31]}, ${fArray[32]}>`)
+  console.log(`Attribute = ${u8Array[132]}${u8Array[133]}`)
+}
+
+//https://stackoverflow.com/questions/13405129/create-and-save-a-file-with-javascript
+// Function to download data to a file
+function download(data, filename, type) {
+  var file = new Blob([data], {type: type});
+  if (window.navigator.msSaveOrOpenBlob) // IE10+
+      window.navigator.msSaveOrOpenBlob(file, filename);
+  else { // Others
+      var a = document.createElement("a"),
+              url = URL.createObjectURL(file);
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function() {
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);  
+      }, 0); 
+  }
 }
 
 document.getElementById("svgData").addEventListener('change', refreshModel)
