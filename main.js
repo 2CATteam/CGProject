@@ -507,13 +507,18 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
     let minY = Math.min(points1[(i + 1) % points1.length], points1[(i + 3) % points1.length])
     let maxY = Math.max(points1[(i + 1) % points1.length], points1[(i + 3) % points1.length])
     console.log(minY, maxY)
+    //Flat surfaces need special care
+    if (Math.abs(minY - maxY) < minDifference) {
+      handleHorizontalLine(minY, points2, points1[i], points1[(i + 2) % points1.length], switchXAndZ, vertexPoints, colorPoints, indices)
+      continue
+    }
     //Entered is treated as an enum tracking whether we've entered the range.
     // entered = 0 means we haven't
     // entered = 1 means we entered from the top
     // entered = -1 means we entered from the bottom
     //We start at 1 in case the entire second profile is contained within the range
     //Below, we set it to 0 if we can start outside the range
-    let entered = 1
+    let entered = 0
     //Initialize a Polygon object for the first run
     let polygon = {
       points: [], //Contains a flat array of the points which make up the polygon
@@ -694,7 +699,10 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
       }
 
       //Sort so that we can iterate simply
-      minIntervals.sort((a, b) => a.start - b.start)
+      minIntervals.sort((a, b) => {
+        if (a.start != b.start) return a.start - b.start
+        return b.end - a.end
+      })
 
       //For each polygon min interval, check the previous interval to see if it overlaps
       //We don't need to check further than that because an outer interval MUST be followed by its contained intervals, if any
@@ -717,10 +725,10 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
             // so we find them
             for (let k = 0; k < polygons[minIntervals[j - 1].polygon].maxCrossings.length - 1; k++) {
               //If the next crossing is greater than the above point, then k is the lower bound of the relevant interval
-              if (polygons[minIntervals[j - 1].polygon].maxCrossings[k + 1].x > innerLeftMaxPoint) {
+              if (polygons[minIntervals[j - 1].polygon].maxCrossings[k + 1].x >= innerLeftMaxPoint) {
                 outerLeftMaxIndex = k
               }
-              if (polygons[minIntervals[j - 1].polygon].maxCrossings[k + 1].x > innerRightMaxPoint) {
+              if (polygons[minIntervals[j - 1].polygon].maxCrossings[k + 1].x >= innerRightMaxPoint) {
                 outerRightMaxIndex = k + 1
               }
             }
@@ -728,7 +736,7 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
             for (let k = 0; k < polygons[minIntervals[j - 1].polygon].minCrossings.length - 1; k++) {
               //If the next crossing is greater than the above point, then k is the lower bound of the relevant interval
               //Save the lower bound of the interval containing the first point
-              if (polygons[minIntervals[j - 1].polygon].minCrossings[k + 1].x > minIntervals[j].end) {
+              if (polygons[minIntervals[j - 1].polygon].minCrossings[k + 1].x >= minIntervals[j].end) {
                 outerRightMinIndex = k + 1
               }
             }
@@ -1082,6 +1090,89 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
       }
       indices.push(...order)
     }
+  }
+}
+
+function handleHorizontalLine(y, points, x1, x2, switchXAndZ, vertexPoints, colorPoints, indices) {
+  //We only care about crossings here, not the rest
+  let minCrossings = []
+  let maxCrossings = []
+
+  //For every line segment
+  for (let i = 0; i < points.length; i += 2) {
+    let i0 = (i + 0) % points.length
+    let i1 = (i + 1) % points.length
+    let i2 = (i + 2) % points.length
+    let i3 = (i + 3) % points.length
+    //If the line crosses or touches the Y coordinate
+    if (intervalIncludes(points[i1], points[i3], y)) {
+      //If it goes through it, add the X value to the min AND max
+      if (Math.max(points[i1], points[i3]) > y && Math.min(points[i1], points[i3]) < y) {
+        let toAdd = trimPoints(points[i0], points[i1], points[i2], points[i3], y, y)
+        minCrossings.push(toAdd[0])
+        maxCrossings.push(toAdd[0])
+      //Else if it's just above, only add to the max
+      } else if (Math.max(points[i1], points[i3]) > y) {
+        let toAdd = trimPoints(points[i0], points[i1], points[i2], points[i3], y, y)
+        maxCrossings.push(toAdd[0])
+      //Else if it's just below, only add to the min
+      } else if (Math.max(points[i1], points[i3]) < y) {
+        let toAdd = trimPoints(points[i0], points[i1], points[i2], points[i3], y, y)
+        minCrossings.push(toAdd[0])
+      }
+    }
+  }
+  //Filter out any duplicate crossings, as they're meaningless
+  for (let i = 0; i < minCrossings.length; i++) {
+    for (let j = i + 1; j < minCrossings.length; j++) {
+      if (Math.abs(minCrossings[i] - minCrossings[j]) < minDifference) {
+        minCrossings[i] = -1
+        minCrossings[j] = -1
+        break
+      }
+    }
+  }
+  minCrossings = minCrossings.filter(a => a != -1)
+  for (let i = 0; i < maxCrossings.length; i++) {
+    for (let j = i + 1; j < maxCrossings.length; j++) {
+      if (Math.abs(maxCrossings[i] - maxCrossings[j]) < minDifference) {
+        maxCrossings[i] = -1
+        maxCrossings[j] = -1
+        break
+      }
+    }
+  }
+  maxCrossings = maxCrossings.filter(a => a != -1)
+  //We now have a list of crossings. We now make the rectangles from them
+  //We work in groups of 4. We know every min has a max, and every min has a paired min.
+  for (let i = 0; i < minCrossings.length; i += 2) {
+    //Do colors first
+    let colors = [Math.random(), Math.random(), Math.random(), 1.0]
+    //One color value for each point (NOT per coordinate)
+    for (let j = 0; j < 4; j++) {
+      colorPoints.push(...colors)
+    }
+    let previousLength = vertexPoints.length / 3
+    //Push the biggest rectangle we can make
+    if (switchXAndZ) {
+      vertexPoints.push(x1, y, Math.min(minCrossings[i], maxCrossings[i]))
+      vertexPoints.push(x2, y, Math.min(minCrossings[i], maxCrossings[i]))
+      vertexPoints.push(x2, y, Math.max(minCrossings[i], maxCrossings[i]))
+      vertexPoints.push(x1, y, Math.max(minCrossings[i], maxCrossings[i]))
+    } else {
+      vertexPoints.push(Math.min(minCrossings[i], maxCrossings[i]), y, x1)
+      vertexPoints.push(Math.min(minCrossings[i], maxCrossings[i]), y, x2)
+      vertexPoints.push(Math.max(minCrossings[i + 1], maxCrossings[i + 1]), y, x2)
+      vertexPoints.push(Math.max(minCrossings[i + 1], maxCrossings[i + 1]), y, x1)
+    }
+    //Add the correct indices for these rectangles
+    indices.push(previousLength + 0,
+      previousLength + 1,
+      previousLength + 2,
+      //Second triangle
+      previousLength + 0,
+      previousLength + 2,
+      previousLength + 3)
   }
 }
 
