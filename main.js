@@ -65,14 +65,15 @@ function main() {
 
   const fsSource = `
     varying lowp vec4 vColor;
-    varying highp vec3 vLighting;
+    //varying highp vec3 vLighting;
 
-    uniform sampler2D uSampler;
+    //uniform sampler2D uSampler;
 
     void main(void) {
-      highp vec4 Color = texture2D(uSampler, vColor);
+      //highp vec4 Color = texture2D(uSampler, vColor);
 
-      gl_FragColor = vec4(Color.rgb * vLighting, Color.a);
+      //gl_FragColor = vec4(Color.rgb * vLighting, Color.a);
+      gl_FragColor = vColor;
     }
   `;
 
