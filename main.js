@@ -56,9 +56,8 @@ function main() {
       highp float directional = max(dot(transformedNormal.xyz, directionalVector), 0.0);
       vLighting = ambientLight + (directionalLightColor * directional);
 
-      //vec3 lightDirection = normalize(uLightPosition - vec3(aVertexPosition));
-
-      //float nDotLight = max(dot(lightDirection, normals), 0.0);
+      vec3 lightDirection = normalize(vec3(gl_Position) - vec3(aVertexPosition));
+      float nDotLight = max(dot(lightDirection, aVertexNormal), 0.0);
     }
   `;
 
@@ -66,9 +65,14 @@ function main() {
 
   const fsSource = `
     varying lowp vec4 vColor;
+    varying highp vec3 vLighting;
+
+    uniform sampler2D uSampler;
 
     void main(void) {
-      gl_FragColor = vColor;
+      highp vec4 Color = texture2D(uSampler, vColor);
+
+      gl_FragColor = vec4(Color.rgb * vLighting, Color.a);
     }
   `;
 
@@ -159,8 +163,27 @@ function drawScene(gl, programInfo, buffers, deltaTime) {
               modelViewMatrix,  // matrix to rotate
               cubeRotation,     // amount to rotate in radians
               [0, 1, 0]);
-  
 
+
+  
+  {
+    const numComponents = 3;
+    const type = gl.FLOAT;
+    const normalize = false;
+    const stride = 0;
+    const offset = 0;
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers.normals);
+    gl.vertexAttribPointer(
+        programInfo.attribLocations.normals,
+        numComponents,
+        type,
+        normalize,
+        stride,
+        offset);
+    gl.enableVertexAttribArray(
+        programInfo.attribLocations.normals);
+  }
+  
   // Tell WebGL how to pull out the positions from the position
   // buffer into the vertexPosition attribute
   {
@@ -201,25 +224,6 @@ function drawScene(gl, programInfo, buffers, deltaTime) {
         programInfo.attribLocations.vertexColor);
   }
 
-  //get the normals
-  // {
-  //   const numComponents = 3;
-  //   const type = gl.FLOAT;
-  //   const normalize = false;
-  //   const stride = 0;
-  //   const offset = 0;
-  //   gl.bindBuffer(gl.ARRAY_BUFFER, buffers.normals);
-  //   gl.vertexAttribPointer(
-  //       programInfo.attribLocations.normals,
-  //       numComponents,
-  //       type,
-  //       normalize,
-  //       stride,
-  //       offset);
-  //   gl.enableVertexAttribArray(
-  //       programInfo.attribLocations.normals);
-  // }
-
   //some math for lighting
   const normalMatrix = mat4.create();
   mat4.invert(normalMatrix, modelViewMatrix);
@@ -229,7 +233,6 @@ function drawScene(gl, programInfo, buffers, deltaTime) {
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices);
 
   // Tell WebGL to use our program when drawing
-
   gl.useProgram(programInfo.program);
 
   // Set the shader uniforms
