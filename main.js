@@ -31,16 +31,34 @@ function main() {
 
   const vsSource = `
     attribute vec4 aVertexPosition;
+    attribute vec3 aVertexNormal;
     attribute vec4 aVertexColor;
+
+    uniform mat4 uNormalMatrix;
 
     uniform mat4 uModelViewMatrix;
     uniform mat4 uProjectionMatrix;
+
+    varying highp vec3 vLighting;
 
     varying lowp vec4 vColor;
 
     void main(void) {
       gl_Position = uProjectionMatrix * uModelViewMatrix * aVertexPosition;
       vColor = aVertexColor;
+
+      highp vec3 ambientLight = vec3(0.3, 0.3, 0.3);
+      highp vec3 directionalLightColor = vec3(1, 1, 1);
+      highp vec3 directionalVector = normalize(vec3(0.85, 0.8, 0.75));
+
+      highp vec4 transformedNormal = uNormalMatrix * vec4(aVertexNormal, 1.0);
+
+      highp float directional = max(dot(transformedNormal.xyz, directionalVector), 0.0);
+      vLighting = ambientLight + (directionalLightColor * directional);
+
+      //vec3 lightDirection = normalize(uLightPosition - vec3(aVertexPosition));
+
+      //float nDotLight = max(dot(lightDirection, normals), 0.0);
     }
   `;
 
@@ -102,6 +120,7 @@ function drawScene(gl, programInfo, buffers, deltaTime) {
   gl.enable(gl.DEPTH_TEST);           // Enable depth testing
   gl.depthFunc(gl.LEQUAL);            // Near things obscure far things
   gl.lineWidth(5)
+
 
   // Clear the canvas before we start drawing on it.
 
@@ -182,6 +201,30 @@ function drawScene(gl, programInfo, buffers, deltaTime) {
         programInfo.attribLocations.vertexColor);
   }
 
+  //get the normals
+  // {
+  //   const numComponents = 3;
+  //   const type = gl.FLOAT;
+  //   const normalize = false;
+  //   const stride = 0;
+  //   const offset = 0;
+  //   gl.bindBuffer(gl.ARRAY_BUFFER, buffers.normals);
+  //   gl.vertexAttribPointer(
+  //       programInfo.attribLocations.normals,
+  //       numComponents,
+  //       type,
+  //       normalize,
+  //       stride,
+  //       offset);
+  //   gl.enableVertexAttribArray(
+  //       programInfo.attribLocations.normals);
+  // }
+
+  //some math for lighting
+  const normalMatrix = mat4.create();
+  mat4.invert(normalMatrix, modelViewMatrix);
+  mat4.transpose(normalMatrix, normalMatrix);
+
   // Tell WebGL which indices to use to index the vertices
   gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, buffers.indices);
 
@@ -199,6 +242,10 @@ function drawScene(gl, programInfo, buffers, deltaTime) {
       programInfo.uniformLocations.modelViewMatrix,
       false,
       modelViewMatrix);
+  gl.uniformMatrix4fv(
+      programInfo.uniformLocations.normalMatrix,
+      false,
+      normalMatrix);
 
   {
     const type = gl.UNSIGNED_SHORT;
@@ -440,11 +487,11 @@ function setModel(data1, data2, perspectiveDistance) {
     const canvas = document.querySelector('#glCanvas');
     const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
 
-    /*
-    console.log(vertexPoints)
-    console.log(colorPoints)
-    console.log(indices)
-    */
+    
+    // console.log(vertexPoints)
+    // console.log(colorPoints)
+    // console.log(indices)
+    // console.log(normals);
 
     const positionBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer)
@@ -455,9 +502,14 @@ function setModel(data1, data2, perspectiveDistance) {
     const indexBuffer = gl.createBuffer();
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
     gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+    const normalBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STATIC_DRAW);
+    
 
     buffers = {
         position: positionBuffer,
+        normal: normalBuffer,
         color: colorBuffer,
         indices: indexBuffer,
     }
