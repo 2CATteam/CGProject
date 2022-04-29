@@ -340,8 +340,8 @@ function setModel(data1, data2, perspectiveDistance) {
       //Divide by the range, making the vertical range now [0, 1]
       points1[i] /= scaleFactor
     }
-    console.log(points1)
-    console.log(earcut(points1))
+    //console.log(points1)
+    //console.log(earcut(points1))
 
     //Do the exact same thing, but for the second profile
     //Collect the points of the second path and scale them to fit vertically
@@ -408,8 +408,8 @@ function setModel(data1, data2, perspectiveDistance) {
         //Divide by the range, making the vertical range now [0, 1]
         points2[i] /= scaleFactor
     }
-    console.log(points2)
-    console.log(earcut(points2))
+    //console.log(points2)
+    //console.log(earcut(points2))
 
     vertexPoints = []
     normals = []
@@ -418,9 +418,9 @@ function setModel(data1, data2, perspectiveDistance) {
 
     //Run the core loops
     clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indices, false)
-    console.log("Did first one")
+    //console.log("Did first one")
     clipProfileToProfile(points2, points1, vertexPoints, colorPoints, indices, true)
-    console.log("Did the second one")
+    //console.log("Did the second one")
 
     //Compensate for perspective
     for (let i = 0; i < vertexPoints.length; i += 3) {
@@ -495,7 +495,7 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
     //The upper an lower boundaries of this line segment
     let minY = Math.min(points1[(i + 1) % points1.length], points1[(i + 3) % points1.length])
     let maxY = Math.max(points1[(i + 1) % points1.length], points1[(i + 3) % points1.length])
-    console.log(minY, maxY)
+    //console.log(minY, maxY)
     //Flat surfaces need special care
     if (Math.abs(minY - maxY) < minDifference) {
       
@@ -529,8 +529,8 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
       let trimmed = trimPoints(points2[0], points2[1], points2[2], points2[3], minY, maxY)
       polygon.points.push(trimmed[0], trimmed[1])
     }
-    console.log(entered)
-    console.log(indexOffset)
+    //console.log(entered)
+    //console.log(indexOffset)
     //Finally, actually loop through the second profile and do the drawing stuff
     for (let j = 0; j < points2.length; j += 2) {
       //We do this because the indices may exceed the length of the array, and we want to loop to the start
@@ -660,7 +660,7 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
         }
       }
     }
-    console.log(polygons)
+    //console.log(polygons)
     //Wow, we're finally out of that loop! Feels good
     //If there's still data left in the polygon object, go ahead and add it to the array
     if (polygon.points.length > 0) {
@@ -1421,6 +1421,70 @@ function download(data, filename, type) {
   }
 }
 
+// The following function is invoked whenever a new file is chosen by the user. It checks both profiles for updates
+//      and handles them accordingly, parsing the .svg data to return complete path data. It even works when the
+//      path data is split over the course of the file.
+// File reader information adapted from:
+// https://stackoverflow.com/questions/750032/reading-file-contents-on-the-client-side-in-javascript-in-various-browsers
+function updateByFile() {
+    var file = document.getElementById("svgFile1").files[0];
+    if (file) {
+        var fr = new FileReader();
+        var contents;
+        fr.onload = function(e) {
+            contents = e.target.result;
+            var path = "";
+            var addToPath = false;
+            for (var i = 0; i < contents.length; ++i) {
+                if (contents.substr(i,4).toLowerCase() === "d=") {
+                    i += 3; // Move the index to the beginning of the path data
+                    addToPath = true;
+                }
+                if (addToPath) {
+                    if (!(contents.substr(i,1) === "\"")) {
+                        path = path.concat(contents.substr(i,1));
+                    }
+                    else
+                        addToPath = false;
+                }
+            }
+            console.log("Path: " + path);
+            document.getElementById("svgData").setAttribute("value", path);
+            refreshModel();
+        };
+        fr.readAsText(file, "UTF-8");
+    }
+    file = document.getElementById("svgFile2").files[0];
+    if (file) {
+        var fr = new FileReader();
+        var contents;
+        fr.onload = function(e) {
+            contents = e.target.result;
+            var path = "";
+            var addToPath = false;
+            for (var i = 0; i < contents.length; ++i) {
+                if (contents.substr(i,4).toLowerCase() === "path") {
+                    i += 8; // Move the index to the beginning of the path data
+                    addToPath = true;
+                }
+                if (addToPath) {
+                    if (!(contents.substr(i,1) === "\"")) {
+                        path = path.concat(contents.substr(i,1));
+                    }
+                    else
+                        addToPath = false;
+                }
+            }
+            console.log("Path: " + path);
+            document.getElementById("svgData2").setAttribute("value", path);
+            refreshModel();
+        };
+        fr.readAsText(file, "UTF-8");
+    }
+}
+
 document.getElementById("svgData").addEventListener('change', refreshModel)
 document.getElementById("svgData2").addEventListener('change', refreshModel)
 document.getElementById("pDistance").addEventListener('change', refreshModel)
+
+

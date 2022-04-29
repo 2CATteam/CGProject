@@ -12,14 +12,16 @@
    <body>
        <div id="input1" class="d-flex flex-column justify-content-center align-items-center">
            <h1>Profile 1:</h1>
-        <label>SVG path data: <input type="text" value="M 0 0 L 10 10 20 5 L 0 20 Z" id="svgData" class="form-control"></label>
+        <label>SVG path data: <input type="text" value="M 0 0 L 10 10 20 5 L 0 20 Z" id="svgData"></label>
+           <form onchange="updateByFile()"><input type="file" id="svgFile1" name="filename" accept=".svg"></form><br/>
         <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="width: 300px; height: 300px" id="svgViewer1">
             <path fill="none" stroke="red" d="M 0 0 L 10 10 L 0 20 Z" id="pathTest1"></path>
         </svg>
        </div>
        <div id="input2" class="d-flex flex-column justify-content-center align-items-center">
-        <h1>Profile 1:</h1>
-        <label class="form-label">SVG path data: <input type="text" value="M 0 0 L 10 10 20 9 L 0 20 Z" id="svgData2" class="form-control"></label>
+        <h1>Profile 2:</h1>
+        <label>SVG path data: <input type="text" value="M 0 0 L 10 10 20 9 L 0 20 Z" id="svgData2"></label>
+           <form onchange="updateByFile()"><input type="file" id="svgFile2" name="filename" accept=".svg"></form><br/>
         <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="width: 300px; height: 300px" id="svgViewer2">
             <path fill="none" stroke="red" d="M 0 0 L 10 10 L 0 20 Z" id="pathTest2"></path>
         </svg>
