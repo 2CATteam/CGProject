@@ -7,6 +7,10 @@ var cubeRotation = 0.0;
 let buffers
 let vertexCount
 
+let vertexPoints
+let indices
+let normals
+
 main();
 
 //
@@ -72,7 +76,7 @@ function main() {
 
   // Here's where we call the routine that builds all the
   // objects we'll be drawing.
-  setModel("M 0 0 L 10 10 20 5 L 0 20 Z", "M 0 0 L 10 10 20 9 L 0 20 Z", 2, 1)
+  setModel("M 0 0 L 10 10 20 5 L 0 20 Z", "M 0 0 L 10 10 20 9 L 0 20 Z", 2)
 
   var then = 0;
 
@@ -257,7 +261,7 @@ function loadShader(gl, type, source) {
   return shader;
 }
 
-function setModel(data1, data2, perspectiveDistance, extrusionDistance) {
+function setModel(data1, data2, perspectiveDistance) {
     //Display the path data in the SVGs
     let path1 = document.getElementById("pathTest1");
     path1.setAttribute("d", data1)
@@ -336,8 +340,8 @@ function setModel(data1, data2, perspectiveDistance, extrusionDistance) {
       //Divide by the range, making the vertical range now [0, 1]
       points1[i] /= scaleFactor
     }
-    console.log(points1)
-    console.log(earcut(points1))
+    //console.log(points1)
+    //console.log(earcut(points1))
 
     //Do the exact same thing, but for the second profile
     //Collect the points of the second path and scale them to fit vertically
@@ -404,68 +408,34 @@ function setModel(data1, data2, perspectiveDistance, extrusionDistance) {
         //Divide by the range, making the vertical range now [0, 1]
         points2[i] /= scaleFactor
     }
-    console.log(points2)
-    console.log(earcut(points2))
+    //console.log(points2)
+    //console.log(earcut(points2))
 
-    let vertexPoints = []
+    vertexPoints = []
+    normals = []
     let colorPoints = []
-    let indices = []
+    indices = []
 
     //Run the core loops
     clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indices, false)
-    console.log("Did first one")
+    //console.log("Did first one")
     clipProfileToProfile(points2, points1, vertexPoints, colorPoints, indices, true)
+    //console.log("Did the second one")
 
-    /*let backPoints = []
-
-    for (let i = 0; i < points.length; i += 2) {
-        backPoints.push(points[i] * (extrusionDistance + perspectiveDistance) / perspectiveDistance)
-        backPoints.push((points[i + 1] + 1) * (extrusionDistance + perspectiveDistance) / perspectiveDistance - 1)
+    //Compensate for perspective
+    for (let i = 0; i < vertexPoints.length; i += 3) {
+      //Change the X and Z coordinates based on perspective
+      let newXY = lineIntersection(
+        //Observe the X from the negative Z axis, perspectiveDistance away
+        0, perspectiveDistance + .5, 
+        vertexPoints[i], -perspectiveDistance,
+        //Observe the Z from the positive X axis
+        -perspectiveDistance - .5, 0,
+        perspectiveDistance, vertexPoints[i + 2]
+      )
+      vertexPoints[i] = newXY[0]
+      vertexPoints[i + 2] = newXY[1]
     }
-
-    console.log(backPoints)
-
-    
-    for (let i in points) {
-        vertexPoints.push(points[i])
-        if (i % 2 == 1) {
-            vertexPoints.push(0.5 * extrusionDistance)
-            colorPoints.push(1.0, 0.0, 0.0, 1.0)
-        }
-    }
-
-    for (let i in backPoints) {
-        vertexPoints.push(backPoints[i])
-        if (i % 2 == 1) {
-            vertexPoints.push(-0.5 * extrusionDistance)
-            colorPoints.push(0.0, 1.0, 0.0, 1.0)
-        }
-    }
-
-    for (let i in points) {
-        vertexPoints.push(points[i])
-        if (i % 2 == 1) {
-            vertexPoints.push(0.5 * extrusionDistance)
-            colorPoints.push(1.0, 1.0, 1.0, 1.0)
-        }
-    }
-
-    indices.push.apply(indices, earcut(points))
-    for (let i = 0; i < points.length / 2; i++) {
-        indices.push(i)
-        indices.push((i + 1) % (points.length / 2))
-        indices.push(i + points.length / 2)
-
-        indices.push((i + 1) % (points.length / 2))
-        indices.push(i + points.length / 2)
-        indices.push(((i + 1) % (points.length / 2)) + points.length / 2)
-    }
-    for (let i of earcut(backPoints)) {
-        indices.push(i + points.length / 2)
-    }
-    for (let i of earcut(points)) {
-        indices.push(i + points.length)
-    }*/
 
     const canvas = document.querySelector('#glCanvas');
     const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
@@ -497,23 +467,48 @@ function setModel(data1, data2, perspectiveDistance, extrusionDistance) {
 
 //Core intersection loop
 function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indices, switchXAndZ) {
+  //Precalculate clockwise-ness
+  let counterclockwise = isCCW(points1)
   //Iterate through each line segment in the first profile
   //For each one, draw the second profile and clip to the range of the segment
   //From these, generate the corresponding 3D points
   for (let i = 0; i < points1.length; i += 2) {
+    //Precalculate normal
+    let normal = [-points1[(i + 3) % points1.length] + points1[(i + 1) % points1.length],
+      points1[(i + 2) % points1.length] - points1[(i + 0) % points1.length]
+      , 0]
+    if (counterclockwise) {
+      normal[0] *= -1
+      normal[1] *= -1
+    }
+    if (switchXAndZ) {
+      normal[2] = normal[0]
+      normal[0] = 0
+    }
+    //Normalize the normal
+    let normalMagnitude = Math.sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2])
+    normal[0] /= normalMagnitude
+    normal[1] /= normalMagnitude
+    normal[2] /= normalMagnitude
     //Keeps an array of objects representing polygons
     let polygons = []
     //The upper an lower boundaries of this line segment
     let minY = Math.min(points1[(i + 1) % points1.length], points1[(i + 3) % points1.length])
     let maxY = Math.max(points1[(i + 1) % points1.length], points1[(i + 3) % points1.length])
-    console.log(minY, maxY)
+    //console.log(minY, maxY)
+    //Flat surfaces need special care
+    if (Math.abs(minY - maxY) < minDifference) {
+      
+      handleHorizontalLine(minY, points2, points1[i], points1[(i + 2) % points1.length], switchXAndZ, vertexPoints, colorPoints, indices, normal)
+      continue
+    }
     //Entered is treated as an enum tracking whether we've entered the range.
     // entered = 0 means we haven't
     // entered = 1 means we entered from the top
     // entered = -1 means we entered from the bottom
     //We start at 1 in case the entire second profile is contained within the range
     //Below, we set it to 0 if we can start outside the range
-    let entered = 1
+    let entered = 0
     //Initialize a Polygon object for the first run
     let polygon = {
       points: [], //Contains a flat array of the points which make up the polygon
@@ -534,8 +529,8 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
       let trimmed = trimPoints(points2[0], points2[1], points2[2], points2[3], minY, maxY)
       polygon.points.push(trimmed[0], trimmed[1])
     }
-    console.log(entered)
-    console.log(indexOffset)
+    //console.log(entered)
+    //console.log(indexOffset)
     //Finally, actually loop through the second profile and do the drawing stuff
     for (let j = 0; j < points2.length; j += 2) {
       //We do this because the indices may exceed the length of the array, and we want to loop to the start
@@ -665,7 +660,7 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
         }
       }
     }
-    console.log(polygons)
+    //console.log(polygons)
     //Wow, we're finally out of that loop! Feels good
     //If there's still data left in the polygon object, go ahead and add it to the array
     if (polygon.points.length > 0) {
@@ -694,7 +689,10 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
       }
 
       //Sort so that we can iterate simply
-      minIntervals.sort((a, b) => a.start - b.start)
+      minIntervals.sort((a, b) => {
+        if (a.start != b.start) return a.start - b.start
+        return b.end - a.end
+      })
 
       //For each polygon min interval, check the previous interval to see if it overlaps
       //We don't need to check further than that because an outer interval MUST be followed by its contained intervals, if any
@@ -717,18 +715,18 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
             // so we find them
             for (let k = 0; k < polygons[minIntervals[j - 1].polygon].maxCrossings.length - 1; k++) {
               //If the next crossing is greater than the above point, then k is the lower bound of the relevant interval
-              if (polygons[minIntervals[j - 1].polygon].maxCrossings[k + 1].x > innerLeftMaxPoint) {
+              if (polygons[minIntervals[j - 1].polygon].maxCrossings[k + 1].x >= innerLeftMaxPoint) {
                 outerLeftMaxIndex = k
               }
-              if (polygons[minIntervals[j - 1].polygon].maxCrossings[k + 1].x > innerRightMaxPoint) {
+              if (polygons[minIntervals[j - 1].polygon].maxCrossings[k + 1].x >= innerRightMaxPoint) {
                 outerRightMaxIndex = k + 1
               }
             }
             //Get the outer right min index too
-            for (let k = 0; k < polygons[minIntervals[j - 1].polygon].maxCrossings.length - 1; k++) {
+            for (let k = 0; k < polygons[minIntervals[j - 1].polygon].minCrossings.length - 1; k++) {
               //If the next crossing is greater than the above point, then k is the lower bound of the relevant interval
               //Save the lower bound of the interval containing the first point
-              if (polygons[minIntervals[j - 1].polygon].minCrossings[k + 1].x > minIntervals[j].end) {
+              if (polygons[minIntervals[j - 1].polygon].minCrossings[k + 1].x >= minIntervals[j].end) {
                 outerRightMinIndex = k + 1
               }
             }
@@ -778,7 +776,8 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
 
             //Copy in the point values from the original polygon
             //We know that the point after outerMaxIndexLow is NOT part of this new polygon, so we can use that fact to identify the direction of this polygon
-            let outerCW = (polygons[minIntervals[j - 1].polygon].maxCrossings[outerLeftMaxIndex + 1].i > polygons[minIntervals[j - 1].polygon].maxCrossings[outerLeftMaxIndex].i)
+            let outerCW = (polygons[minIntervals[j - 1].polygon].maxCrossings[outerLeftMaxIndex + 1].i > polygons[minIntervals[j - 1].polygon].maxCrossings[outerLeftMaxIndex].i
+              || (polygons[minIntervals[j - 1].polygon].maxCrossings[outerLeftMaxIndex + 1].i == 0 && polygons[minIntervals[j - 1].polygon].maxCrossings[outerLeftMaxIndex].i + 2 == polygons[minIntervals[j - 1].polygon].points.length))
             //Collect all the crossing indices
             let crossingIndices = []
             for (let k in polygons[minIntervals[j - 1].polygon].minCrossings) {
@@ -789,8 +788,8 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
             }
             //We get all the points from the left part of the outer polygon
             leftPolygon.points = circularSlice(polygons[minIntervals[j - 1].polygon].points,
-              outerCW ? minIntervals[j - 1].startIndex : outerLeftMaxIndex, //When in outer is CW, we go from min to max
-              (outerCW ? outerLeftMaxIndex : minIntervals[j - 1].startIndex) + 1, //Otherwise, we got from max to min. The +1 is to make the end inclusive
+              outerCW ? minIntervals[j - 1].startIndex : polygons[minIntervals[j - 1].polygon].maxCrossings[outerLeftMaxIndex].i, //When in outer is CW, we go from min to max
+              (outerCW ? polygons[minIntervals[j - 1].polygon].maxCrossings[outerLeftMaxIndex].i : minIntervals[j - 1].startIndex) + 2, //Otherwise, we got from max to min. The +2 is to make the end inclusive
               crossingIndices)
             //Then we update the crossings of this slice to reflect the new indices of the crossing points
             for (let k = 0; k < crossingIndices.length; k++) {
@@ -802,16 +801,16 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
               }
             }
             //Then we add in the new edges from the intersecting polygon
-            let previousLength = leftPolygon.length
+            let previousLength = leftPolygon.points.length
             let newPoints = circularSlice(polygons[minIntervals[j].polygon].points,
               outerCW ? innerLeftMaxIndex : innerLeftMinIndex, //Same as above, but reversed, because the inner is CCW when the outer is CW
-              (outerCW ? innerLeftMinIndex : innerLeftMaxIndex) + 1)
+              (outerCW ? innerLeftMinIndex : innerLeftMaxIndex) + 2)
             leftPolygon.points.push(...newPoints)
             //Now update the crossings
             //The first in the new points list is always the max crossing, and the last is always the min crossing, based on our definition earlier.
             // Or switched when outer is CCW
-            leftPolygon.maxCrossings.push({x: polygons[minIntervals[j].polygon].maxCrossings[0].x, i: outerCW ? previousLength : leftPolygon.points.length - 1})
-            leftPolygon.minCrossings.push({x: polygons[minIntervals[j].polygon].minCrossings[0].x, i: outerCW ? leftPolygon.points.length - 1 : previousLength})
+            leftPolygon.maxCrossings.push({x: polygons[minIntervals[j].polygon].maxCrossings[0].x, i: outerCW ? previousLength : leftPolygon.points.length - 2})
+            leftPolygon.minCrossings.push({x: polygons[minIntervals[j].polygon].minCrossings[0].x, i: outerCW ? leftPolygon.points.length - 2 : previousLength})
             //Save this polygon (we'll delete the old ones later)
             polygons.push(leftPolygon)
 
@@ -826,8 +825,8 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
             }
             //We get all the points from the right part of the outer polygon
             rightPolygon.points = circularSlice(polygons[minIntervals[j - 1].polygon].points,
-              outerCW ? outerRightMaxIndex : outerRightMinIndex, //Reversed of last time - if outside is CW, go max to min, since this is the right
-              (outerCW ? outerRightMinIndex : outerRightMaxIndex) + 1,
+              outerCW ? polygons[minIntervals[j - 1].polygon].maxCrossings[outerRightMaxIndex].i : polygons[minIntervals[j - 1].polygon].minCrossings[outerRightMinIndex].i, //Reversed of last time - if outside is CW, go max to min, since this is the right
+              (outerCW ? polygons[minIntervals[j - 1].polygon].minCrossings[outerRightMinIndex].i : polygons[minIntervals[j - 1].polygon].maxCrossings[outerRightMaxIndex].i) + 2,
               crossingIndices)
             //Then we update the crossings of this new one to reflect the new indices of the crossing points
             for (let k = 0; k < crossingIndices.length; k++) {
@@ -840,17 +839,17 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
             }
 
             //Then we add in the new edges from the intersecting polygon
-            previousLength = rightPolygon.length
+            previousLength = rightPolygon.points.length
             //The boundaries for the right ones, we KNOW are the final ones in the inner crossings
             //The order depends on CW-ness, and since this is long, we do a normal if instead of a ternary
             if (outerCW) {
               newPoints = circularSlice(polygons[minIntervals[j].polygon].points,
                 polygons[minIntervals[j].polygon].minCrossings[polygons[minIntervals[j].polygon].minCrossings.length - 1].i,
-                polygons[minIntervals[j].polygon].maxCrossings[polygons[minIntervals[j].polygon].maxCrossings.length - 1].i + 1)
+                polygons[minIntervals[j].polygon].maxCrossings[polygons[minIntervals[j].polygon].maxCrossings.length - 1].i + 2)
             } else {
               newPoints = circularSlice(polygons[minIntervals[j].polygon].points,
                 polygons[minIntervals[j].polygon].maxCrossings[polygons[minIntervals[j].polygon].maxCrossings.length - 1].i,
-                polygons[minIntervals[j].polygon].minCrossings[polygons[minIntervals[j].polygon].minCrossings.length - 1].i + 1)
+                polygons[minIntervals[j].polygon].minCrossings[polygons[minIntervals[j].polygon].minCrossings.length - 1].i + 2)
             }
             rightPolygon.points.push(...newPoints)
             //Now update the crossings
@@ -858,11 +857,11 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
             //Switched if outer is CCW
             rightPolygon.maxCrossings.push({
               x: polygons[minIntervals[j].polygon].maxCrossings[polygons[minIntervals[j].polygon].minCrossings.length - 1].x,
-              i: outerCW ? (leftPolygon.points.length - 1) : previousLength
+              i: outerCW ? (leftPolygon.points.length - 2) : previousLength
             })
             rightPolygon.minCrossings.push({
               x: polygons[minIntervals[j].polygon].minCrossings[polygons[minIntervals[j].polygon].minCrossings.length - 1].x,
-              i: outerCW ? previousLength : (leftPolygon.points.length - 1)
+              i: outerCW ? previousLength : (leftPolygon.points.length - 2)
             })
             //Save this polygon (we'll delete the old ones later)
             polygons.push(rightPolygon)
@@ -1079,8 +1078,97 @@ function clipProfileToProfile(points1, points2, vertexPoints, colorPoints, indic
       for (let k = 0; k < order.length; k++) {
         order[k] += previousLength
       }
+      //Save a copy of the normal vector for each triangle
+      for (let k = 0; k < order.length; k += 3) {
+        normals.push(...normal)
+      }
       indices.push(...order)
     }
+  }
+}
+
+function handleHorizontalLine(y, points, x1, x2, switchXAndZ, vertexPoints, colorPoints, indices, normal) {
+  //We only care about crossings here, not the rest
+  let minCrossings = []
+  let maxCrossings = []
+
+  //For every line segment
+  for (let i = 0; i < points.length; i += 2) {
+    let i0 = (i + 0) % points.length
+    let i1 = (i + 1) % points.length
+    let i2 = (i + 2) % points.length
+    let i3 = (i + 3) % points.length
+    //If the line crosses or touches the Y coordinate
+    if (intervalIncludes(points[i1], points[i3], y)) {
+      //If it goes through it, add the X value to the min AND max
+      if (Math.max(points[i1], points[i3]) > y && Math.min(points[i1], points[i3]) < y) {
+        let toAdd = trimPoints(points[i0], points[i1], points[i2], points[i3], y, y)
+        minCrossings.push(toAdd[0])
+        maxCrossings.push(toAdd[0])
+      //Else if it's just above, only add to the max
+      } else if (Math.max(points[i1], points[i3]) > y) {
+        let toAdd = trimPoints(points[i0], points[i1], points[i2], points[i3], y, y)
+        maxCrossings.push(toAdd[0])
+      //Else if it's just below, only add to the min
+      } else if (Math.max(points[i1], points[i3]) < y) {
+        let toAdd = trimPoints(points[i0], points[i1], points[i2], points[i3], y, y)
+        minCrossings.push(toAdd[0])
+      }
+    }
+  }
+  //Filter out any duplicate crossings, as they're meaningless
+  for (let i = 0; i < minCrossings.length; i++) {
+    for (let j = i + 1; j < minCrossings.length; j++) {
+      if (Math.abs(minCrossings[i] - minCrossings[j]) < minDifference) {
+        minCrossings[i] = -1
+        minCrossings[j] = -1
+        break
+      }
+    }
+  }
+  minCrossings = minCrossings.filter(a => a != -1)
+  for (let i = 0; i < maxCrossings.length; i++) {
+    for (let j = i + 1; j < maxCrossings.length; j++) {
+      if (Math.abs(maxCrossings[i] - maxCrossings[j]) < minDifference) {
+        maxCrossings[i] = -1
+        maxCrossings[j] = -1
+        break
+      }
+    }
+  }
+  maxCrossings = maxCrossings.filter(a => a != -1)
+  //We now have a list of crossings. We now make the rectangles from them
+  //We work in groups of 4. We know every min has a max, and every min has a paired min.
+  for (let i = 0; i < minCrossings.length; i += 2) {
+    //Do colors first
+    let colors = [Math.random(), Math.random(), Math.random(), 1.0]
+    //One color value for each point (NOT per coordinate)
+    for (let j = 0; j < 4; j++) {
+      colorPoints.push(...colors)
+    }
+    let previousLength = vertexPoints.length / 3
+    //Push the biggest rectangle we can make
+    if (switchXAndZ) {
+      vertexPoints.push(x1, y, Math.min(minCrossings[i], maxCrossings[i]))
+      vertexPoints.push(x2, y, Math.min(minCrossings[i], maxCrossings[i]))
+      vertexPoints.push(x2, y, Math.max(minCrossings[i], maxCrossings[i]))
+      vertexPoints.push(x1, y, Math.max(minCrossings[i], maxCrossings[i]))
+    } else {
+      vertexPoints.push(Math.min(minCrossings[i], maxCrossings[i]), y, x1)
+      vertexPoints.push(Math.min(minCrossings[i], maxCrossings[i]), y, x2)
+      vertexPoints.push(Math.max(minCrossings[i + 1], maxCrossings[i + 1]), y, x2)
+      vertexPoints.push(Math.max(minCrossings[i + 1], maxCrossings[i + 1]), y, x1)
+    }
+    //Add the correct indices for these rectangles
+    indices.push(previousLength + 0,
+      previousLength + 1,
+      previousLength + 2,
+      //Second triangle
+      previousLength + 0,
+      previousLength + 2,
+      previousLength + 3)
+    normals.push(...normal)
+    normals.push(...normal)
   }
 }
 
@@ -1170,13 +1258,13 @@ function trimPoints(x1, y1, x2, y2, bound1, bound2) {
 //Functions like vanilla's slice(), but if b < a, will instead return an array including elements from a to the end followed by items from the beginning to b
 //If an array of indices is supplied as well, will update them
 function circularSlice(array, a, b, indices) {
-  if (a >= b) {
+  if (a <= b) {
     if (indices) {
       for (let i = 0; i < indices.length; i++) {
-        if (i < b && i >= a) {
-          i -= a
+        if (indices[i] < b && indices[i] >= a) {
+          indices[i] -= a
         } else {
-          i = -1
+          indices[i] = -1
         }
       }
     }
@@ -1184,17 +1272,17 @@ function circularSlice(array, a, b, indices) {
   } else {
     if (indices) {
       for (let i = 0; i < indices.length; i++) {
-        if (i >= b) {
-          indices[i] -= b
-        } else if (i < a) {
-          indices += (indices.length - b - 1)
+        if (indices[i] >= a) {
+          indices[i] -= a
+        } else if (indices[i] < b) {
+          indices[i] += (array.length - a)
         } else {
           indices[i] = -1
         }
       }
     }
-    let toReturn = array.slice(b, array.length)
-    toReturn.push(...array.slice(0, a))
+    let toReturn = array.slice(a, array.length)
+    toReturn.push(...array.slice(0, b))
     return toReturn
   }
 }
@@ -1226,14 +1314,177 @@ function interpolate(x1, y1, x2, y2, x) {
   return (x - x1) * ((y2 - y1) / (x2 - x1)) + y1
 }
 
+//Returns the intersection point of two lines, each defined by a point and a vector
+function lineIntersection(p1x, p1y, v1x, v1y, p2x, p2y, v2x, v2y) {
+  //Normalize the vectors
+  let mv1 = Math.sqrt(v1x * v1x + v1y * v1y)
+  v1x /= mv1
+  v1y /= mv1
+  let mv2 = Math.sqrt(v2x * v2x + v2y * v2y)
+  v2x /= mv2
+  v2y /= mv2
+  //The perp vector of v2 is <v2y, -v2x>
+  //Relative speed is that perp dotted with v1
+  let relativeSpeed = Math.abs(v2y * v1x - v2x * v1y)
+  //Now the DISTANCE to hit is the displacement vector between p1 and p2 dotted with the perp vector
+  let minDistance = Math.abs((p2x - p1x) * v2y - (p2y - p1y) * v2x)
+  //So now the time to hit is minDistance / relativeSpeed
+  let timeToHit = minDistance / relativeSpeed
+  //Now it's just timeToHit * v1 + p1
+  return [p1x + timeToHit * v1x, p1y + timeToHit * v1y]
+}
+
 function refreshModel(e) {
     setModel(document.getElementById("svgData").value,
         document.getElementById("svgData2").value,
-        parseFloat(document.getElementById("pDistance").value),
-        parseFloat(document.getElementById("eDistance").value))
+        parseFloat(document.getElementById("pDistance").value))
+}
+
+
+//https://stackoverflow.com/questions/1165647/how-to-determine-if-a-list-of-polygon-points-are-in-clockwise-order/1180256#1180256
+function isCCW(points) {
+  if (points.length < 6) {
+    return true
+  }
+  //Find the point with the minimum Y and, breaking ties, maximum X
+  let minY = Infinity
+  let maxX = -Infinity
+  let index = -1
+  for (let i = 0; i < points.length; i += 2) {
+    if (points[i + 1] <= minY) {
+      if (points[i + 1] == minY && points[i] > maxX) {
+        minY = points[i + 1]
+        maxX = points[i]
+        index = i
+      }
+    }
+  }
+  let low = index + points.length - 2 % points.length
+  let high = index + 2 % points.length
+  let v1x = points[index] - points[low]
+  let v1y = points[index + 1] - points[low + 1]
+  let v2x = points[index] - points[high]
+  let v2y = points[index + 1] - points[high + 1]
+  return (v1x * v2y - v1y * v2x) > 0
+}
+
+//https://en.wikipedia.org/wiki/STL_(file_format)
+function exportSTL() {
+  let data = "solid team08\n"
+
+  for (let i = 0; i < indices.length; i += 3) {
+    data += ` facet normal ${normals[i]} ${normals[i + 1]} ${normals[i + 2]}`
+    data += "\n  outer loop\n"
+    data += `   vertex ${vertexPoints[indices[i] * 3]} ${vertexPoints[indices[i] * 3 + 1]} ${vertexPoints[indices[i] * 3 + 2]}` + "\n"
+    data += `   vertex ${vertexPoints[indices[i + 1] * 3]} ${vertexPoints[indices[i + 1] * 3 + 1]} ${vertexPoints[indices[i + 1] * 3 + 2]}` + "\n"
+    data += `   vertex ${vertexPoints[indices[i + 2] * 3]} ${vertexPoints[indices[i + 2] * 3 + 1]} ${vertexPoints[indices[i + 2] * 3 + 2]}` + "\n"
+    data += "  endloop\n"
+    data += " endfacet\n"
+  }
+
+  data += "endsolid team08"
+
+  download(data, "model.stl", "application/octet-stream")
+}
+
+function printData(data) {
+  let u8Array = new Uint8Array(data)
+  let u32Array = new Uint32Array(data)
+  let fArray = new Float32Array(data)
+  console.log("Length: " + u8Array.length)
+  console.log("Header: " + (new TextDecoder()).decode(u8Array).substring(0, 80))
+  console.log("Vertex count: " + u32Array[20])
+  console.log(`First normal = <${fArray[21]}, ${fArray[22]}, ${fArray[23]}>`)
+  console.log(`First point = <${fArray[24]}, ${fArray[25]}, ${fArray[26]}>`)
+  console.log(`Second point = <${fArray[27]}, ${fArray[28]}, ${fArray[29]}>`)
+  console.log(`Third point = <${fArray[30]}, ${fArray[31]}, ${fArray[32]}>`)
+  console.log(`Attribute = ${u8Array[132]}${u8Array[133]}`)
+}
+
+//https://stackoverflow.com/questions/13405129/create-and-save-a-file-with-javascript
+// Function to download data to a file
+function download(data, filename, type) {
+  var file = new Blob([data], {type: type});
+  if (window.navigator.msSaveOrOpenBlob) // IE10+
+      window.navigator.msSaveOrOpenBlob(file, filename);
+  else { // Others
+      var a = document.createElement("a"),
+              url = URL.createObjectURL(file);
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(function() {
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);  
+      }, 0); 
+  }
+}
+
+// The following function is invoked whenever a new file is chosen by the user. It checks both profiles for updates
+//      and handles them accordingly, parsing the .svg data to return complete path data. It even works when the
+//      path data is split over the course of the file.
+// File reader information adapted from:
+// https://stackoverflow.com/questions/750032/reading-file-contents-on-the-client-side-in-javascript-in-various-browsers
+function updateByFile() {
+    var file = document.getElementById("svgFile1").files[0];
+    if (file) {
+        var fr = new FileReader();
+        var contents;
+        fr.onload = function(e) {
+            contents = e.target.result;
+            var path = "";
+            var addToPath = false;
+            for (var i = 0; i < contents.length; ++i) {
+                if (contents.substr(i,4).toLowerCase() === "d=") {
+                    i += 3; // Move the index to the beginning of the path data
+                    addToPath = true;
+                }
+                if (addToPath) {
+                    if (!(contents.substr(i,1) === "\"")) {
+                        path = path.concat(contents.substr(i,1));
+                    }
+                    else
+                        addToPath = false;
+                }
+            }
+            console.log("Path: " + path);
+            document.getElementById("svgData").setAttribute("value", path);
+            refreshModel();
+        };
+        fr.readAsText(file, "UTF-8");
+    }
+    file = document.getElementById("svgFile2").files[0];
+    if (file) {
+        var fr = new FileReader();
+        var contents;
+        fr.onload = function(e) {
+            contents = e.target.result;
+            var path = "";
+            var addToPath = false;
+            for (var i = 0; i < contents.length; ++i) {
+                if (contents.substr(i,4).toLowerCase() === "path") {
+                    i += 8; // Move the index to the beginning of the path data
+                    addToPath = true;
+                }
+                if (addToPath) {
+                    if (!(contents.substr(i,1) === "\"")) {
+                        path = path.concat(contents.substr(i,1));
+                    }
+                    else
+                        addToPath = false;
+                }
+            }
+            console.log("Path: " + path);
+            document.getElementById("svgData2").setAttribute("value", path);
+            refreshModel();
+        };
+        fr.readAsText(file, "UTF-8");
+    }
 }
 
 document.getElementById("svgData").addEventListener('change', refreshModel)
 document.getElementById("svgData2").addEventListener('change', refreshModel)
 document.getElementById("pDistance").addEventListener('change', refreshModel)
-document.getElementById("eDistance").addEventListener('change', refreshModel)
+
+
