@@ -19,14 +19,18 @@
     left: 50%;
     top: 0;
     width: 50%;
-    height: 30%;
+    height: calc(100vh - 640px);
     border: 1px solid black;
 }
 #output1 {
     position: absolute;
     left: 50%;
-    top: 30%;
+    top: calc(100vh - 640px);
     width: 50%;
-    height: 70%;
+    height: 640px;
     border: 1px solid black;
+}
+
+#glCanvas {
+    position: fixed;
 }

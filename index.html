@@ -12,24 +12,24 @@
    <body>
        <div id="input1" class="d-flex flex-column justify-content-center align-items-center">
            <h1>Profile 1:</h1>
-        <label>SVG path data: <input type="text" value="M 0 0 L 10 10 20 5 L 0 20 Z" id="svgData"></label><br/>
+        <label>SVG path data: <input type="text" value="M 0 0 L 10 10 20 5 L 0 20 Z" id="svgData" class="form-control"></label>
         <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="width: 300px; height: 300px" id="svgViewer1">
             <path fill="none" stroke="red" d="M 0 0 L 10 10 L 0 20 Z" id="pathTest1"></path>
         </svg>
        </div>
        <div id="input2" class="d-flex flex-column justify-content-center align-items-center">
         <h1>Profile 1:</h1>
-        <label>SVG path data: <input type="text" value="M 0 0 L 10 10 20 9 L 0 20 Z" id="svgData2"></label><br/>
+        <label class="form-label">SVG path data: <input type="text" value="M 0 0 L 10 10 20 9 L 0 20 Z" id="svgData2" class="form-control"></label>
         <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="width: 300px; height: 300px" id="svgViewer2">
             <path fill="none" stroke="red" d="M 0 0 L 10 10 L 0 20 Z" id="pathTest2"></path>
         </svg>
        </div>
        <div id="input3" class="d-flex flex-column justify-content-center align-items-center">
         <h1>Model parameters:</h1>
-        <label>Viewing angle (deg): <input type="number" min="-90" max="90" step="1" value="45" id="vAngle"></label><br/>
-        <label>Rotation speed: <input type="number" step=".1" value="1" id="rSpeed"></label><br/>
-        <label>Perspective distance: <input type="number" min="1" max="10000" step="1" value="2" id="pDistance"></label><br/>
-        <button onclick="exportSTL()">Download .stl file</button>
+        <label class="form-label">Viewing angle (deg): <input type="number" min="-90" max="90" step="1" value="45" id="vAngle" class="form-control"></label>
+        <label class="form-label">Rotation speed: <input type="number" step=".1" value="1" id="rSpeed" class="form-control"></label>
+        <label class="form-label">Perspective distance: <input type="number" min="1" max="10000" step="1" value="2" id="pDistance" class="form-control"></label>
+        <button onclick="exportSTL()" class="btn btn-primary">Download .stl file</button>
        </div>
        <div id="output1" class="d-flex flex-column justify-content-center align-items-center">
         <canvas width = "640" height = "640" id = "glCanvas"></canvas><br/>
