@@ -1436,8 +1436,8 @@ function updateByFile() {
             var path = "";
             var addToPath = false;
             for (var i = 0; i < contents.length; ++i) {
-                if (contents.substr(i,4).toLowerCase() === "path") {
-                    i += 8; // Move the index to the beginning of the path data
+                if (contents.substr(i,4).toLowerCase() === "d=") {
+                    i += 3; // Move the index to the beginning of the path data
                     addToPath = true;
                 }
                 if (addToPath) {
