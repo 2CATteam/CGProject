@@ -2,7 +2,7 @@
 //A number which is basically 0
 const minDifference = 0.00000000001
 
-var cubeRotation = -1.6;
+var cubeRotation = 1.6;
 
 let buffers
 let vertexCount
