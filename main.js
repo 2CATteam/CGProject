@@ -76,7 +76,7 @@ function main() {
 
   // Here's where we call the routine that builds all the
   // objects we'll be drawing.
-  setModel("M 0 0 L 10 10 20 5 L 0 20 Z", "M 0 0 L 10 10 20 9 L 0 20 Z", 2)
+  setModel("M 10 0 L 0 10 10 20 20 10 Z", "M 0 10 L 5 0 10 10 Z", 2)
 
   var then = 0;
 
